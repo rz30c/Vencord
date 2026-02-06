@@ -1,128 +1,107 @@
-/*
- * Vencord, a Discord client mod
- * Copyright (c) 2024 Vendicated and contributors
- * SPDX-License-Identifier: GPL-3.0-or-later
- */
-
-import { definePluginSettings } from "@api/Settings";
-import { getIntlMessage } from "@utils/discord";
-import definePlugin, { OptionType } from "@utils/types";
-import { Button, Forms, Menu } from "@webpack/common";
-import { ReactElement } from "react";
-
-import { preload, unload } from "./images";
-import { cl } from "./ui";
-import openQrModal from "./ui/modals/QrModal";
-
-export default definePlugin({
-    name: "LoginWithQR",
-    description: "Allows you to login to another device by scanning a login QR code, just like on mobile!",
-    authors: [{
-        name: "rz30",
-        id: 786315593963536415n
-    }, {
-        name: "l2cu",
-        id: 1208352443512004648n
-}],
-    settings: definePluginSettings({
-        scanQr: {
-            type: OptionType.COMPONENT,
-            description: "Scan a QR code",
-            component() {
-                if (!Vencord.Plugins.plugins.LoginWithQR.started)
-                    return (
-                        <Forms.FormText>
-                            Enable the plugin and restart your client to scan a login QR code
-                        </Forms.FormText>
-                    );
-
-                return (
-                    <Button size={Button.Sizes.SMALL} onClick={openQrModal}>
-                        {getIntlMessage("USER_SETTINGS_SCAN_QR_CODE")}
-                    </Button>
-                );
-            },
-        },
-    }),
-
-    patches: [
-        // Prevent paste event from firing when the QRModal is open
-        {
-            find: ".clipboardData&&(",
-            // Find the handleGlobalPaste function and prevent it from firing when the modal is open.
-            // Does this have any side effects? Maybe
-            replacement: {
-                match: /handleGlobalPaste:(\i)/,
-                replace: "handleGlobalPaste:(...args)=>!$self.qrModalOpen&&$1(...args)",
-            },
-        },
-        // Insert a Scan QR Code button in the My Account tab
-        {
-            find: "UserSettingsAccountProfileCard",
-            replacement: {
-                // Find the Edit User Profile button and insert our custom button.
-                // A bit jank, but whatever
-                match: /,(\(.{1,90}#{intl::USER_SETTINGS_EDIT_USER_PROFILE}\)}\))/,
-                replace: ",$self.insertScanQrButton($1)",
-            },
-        },
-        // Insert a Scan QR Code MenuItem in the Swith Accounts popout
-        {
-            find: 'id:"manage-accounts"',
-            replacement: {
-                match: /(id:"manage-accounts",.*?)}\)\)(,\i)/,
-                replace: "$1}),$self.ScanQrMenuItem)$2"
-            }
-        },
-
-        // Insert a Scan QR Code button in the Settings sheet
-        {
-            find: "useGenerateUserSettingsSections",
-            replacement: {
-                match: /\.CONNECTIONS/,
-                replace: "$&,\"SCAN_QR_CODE\""
-            }
-        },
-        // Insert a Scan QR Code button in the Settings sheet (part 2)
-        {
-            find: ".PRIVACY_ENCRYPTION_VERIFIED_DEVICES_V2]",
-            replacement: {
-                match: /\.CLIPS]:{.*?},/,
-                replace: "$&\"SCAN_QR_CODE\":$self.ScanQrSettingsSheet,"
-            }
-        }
-    ],
-
-    qrModalOpen: false,
-
-    insertScanQrButton: (button: ReactElement) => (
-        <div className={cl("settings-btns")}>
-            <Button size={Button.Sizes.SMALL} onClick={openQrModal}>
-                {getIntlMessage("USER_SETTINGS_SCAN_QR_CODE")}
-            </Button>
-            {button}
-        </div>
-    ),
-    get ScanQrMenuItem() {
-        return <Menu.MenuItem id="scan-qr" label={getIntlMessage("USER_SETTINGS_SCAN_QR_CODE")} action={openQrModal} />;
+{
+    "name": "vencord",
+    "private": "true",
+    "version": "1.14.2",
+    "description": "The cutest Discord client mod",
+    "homepage": "https://github.com/Vendicated/Vencord#readme",
+    "bugs": {
+        "url": "https://github.com/Vendicated/Vencord/issues"
     },
-    get ScanQrSettingsSheet() {
-        return {
-            section: getIntlMessage("USER_SETTINGS_SCAN_QR_CODE"),
-            onClick: openQrModal,
-            searchableTitles: [getIntlMessage("USER_SETTINGS_SCAN_QR_CODE")],
-            label: getIntlMessage("USER_SETTINGS_SCAN_QR_CODE"),
-            ariaLabel: getIntlMessage("USER_SETTINGS_SCAN_QR_CODE")
-        };
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/Vendicated/Vencord.git"
     },
-
-    start() {
-        // Preload images
-        preload();
+    "license": "GPL-3.0-or-later",
+    "author": "Vendicated",
+    "scripts": {
+        "build": "node --require=./scripts/suppressExperimentalWarnings.js scripts/build/build.mjs",
+        "buildStandalone": "pnpm build --standalone",
+        "buildWeb": "node --require=./scripts/suppressExperimentalWarnings.js scripts/build/buildWeb.mjs",
+        "buildWebStandalone": "pnpm buildWeb --standalone",
+        "buildReporter": "pnpm buildWebStandalone --reporter --skip-extension",
+        "buildReporterDesktop": "pnpm build --reporter",
+        "watch": "pnpm build --watch",
+        "dev": "pnpm watch",
+        "watchWeb": "pnpm buildWeb --watch",
+        "generatePluginJson": "tsx scripts/generatePluginList.ts",
+        "generateTypes": "tspc --emitDeclarationOnly --declaration --outDir packages/vencord-types --allowJs false",
+        "inject": "node scripts/runInstaller.mjs -- --install",
+        "uninject": "node scripts/runInstaller.mjs -- --uninstall",
+        "lint": "eslint",
+        "lint-styles": "stylelint \"src/**/*.css\" --ignore-pattern src/userplugins",
+        "lint:fix": "pnpm lint --fix",
+        "test": "pnpm buildStandalone && pnpm testTsc && pnpm lint && pnpm lint-styles && pnpm generatePluginJson",
+        "testWeb": "pnpm lint && pnpm buildWeb && pnpm testTsc",
+        "testTsc": "tsc --noEmit"
     },
-
-    stop() {
-        unload?.();
+    "dependencies": {
+        "@intrnl/xxhash64": "^0.1.2",
+        "@vap/core": "0.0.12",
+        "@vap/shiki": "0.10.5",
+        "fflate": "^0.8.2",
+        "gifenc": "github:mattdesl/gifenc#64842fca317b112a8590f8fef2bf3825da8f6fe3",
+        "monaco-editor": "^0.54.0",
+        "nanoid": "^5.1.6",
+        "virtual-merge": "^1.0.1"
     },
-});
-
+    "devDependencies": {
+        "@stylistic/eslint-plugin": "^5.6.0",
+        "@types/chrome": "^0.1.30",
+        "@types/lodash": "^4.17.20",
+        "@types/node": "^24.10.1",
+        "@types/react": "^19.0.10",
+        "@types/react-dom": "^19.0.4",
+        "@types/yazl": "^3.3.0",
+        "@vencord/discord-types": "link:packages/discord-types",
+        "diff": "^8.0.2",
+        "esbuild": "^0.27.0",
+        "eslint": "9.39.1",
+        "eslint-import-resolver-alias": "^1.1.2",
+        "eslint-plugin-path-alias": "2.1.0",
+        "eslint-plugin-react": "^7.37.5",
+        "eslint-plugin-simple-header": "^1.2.1",
+        "eslint-plugin-simple-import-sort": "^12.1.1",
+        "eslint-plugin-unused-imports": "^4.3.0",
+        "highlight.js": "11.11.1",
+        "html-minifier-terser": "^7.2.0",
+        "moment": "^2.22.2",
+        "puppeteer-core": "^24.30.0",
+        "standalone-electron-types": "^34.2.0",
+        "stylelint": "^16.25.0",
+        "stylelint-config-standard": "^39.0.1",
+        "svgo": "^4.0.0",
+        "ts-patch": "^3.3.0",
+        "ts-pattern": "^5.6.0",
+        "tsx": "^4.20.6",
+        "type-fest": "^5.2.0",
+        "typescript": "^5.9.3",
+        "typescript-eslint": "^8.47.0",
+        "typescript-transform-paths": "^3.5.5",
+        "zip-local": "^0.3.5"
+    },
+    "packageManager": "pnpm@10.4.1",
+    "pnpm": {
+        "patchedDependencies": {
+            "eslint-plugin-path-alias@2.1.0": "patches/eslint-plugin-path-alias@2.1.0.patch"
+        },
+        "peerDependencyRules": {
+            "ignoreMissing": [
+                "eslint-plugin-import",
+                "eslint"
+            ]
+        },
+        "allowedDeprecatedVersions": {
+            "source-map-resolve": "*",
+            "resolve-url": "*",
+            "source-map-url": "*",
+            "urix": "*",
+            "q": "*"
+        },
+        "onlyBuiltDependencies": [
+            "esbuild"
+        ]
+    },
+    "engines": {
+        "node": ">=18"
+    }
+}
